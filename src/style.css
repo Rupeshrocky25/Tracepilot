@@ -1245,20 +1245,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .message-text {
   white-space: pre-wrap;
-  color: var(--ink);
+  color: #dedede;
   font-size: 13px;
   line-height: 1.75;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid var(--line);
-  box-shadow: var(--liquid-shadow-sm), inset 0 1px 0 #ffffff;
+  background: #22262c;
+  border: 1px solid rgba(190, 190, 190, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   border-radius: 12px;
   padding: 14px 18px;
 }
 
 .message.user .message-text {
-  background: rgba(240, 249, 255, 0.88);
-  border-color: rgba(186, 230, 253, 0.5);
-  color: var(--ocean-darker);
+  background: #2a313a;
+  border-color: rgba(210, 210, 210, 0.28);
+  color: #f2f2f2;
 }
 
 .thinking {
@@ -2474,6 +2474,12 @@ body {
 .suggestions button:hover { background: #333; color: #fff; }
 .empty-spark, .message-avatar, .settings-symbol { color: #e2e2e2; background: linear-gradient(145deg, #424242, #222); border-color: rgba(220, 220, 220, .17); box-shadow: inset 1px 1px rgba(255, 255, 255, .07), 0 6px 16px rgba(0, 0, 0, .24); }
 .message.user .message-avatar { color: #e0e0e0; background: #343434; }
+.message-text { background: #22262c; border: 1px solid rgba(190, 190, 190, .2); color: #dedede; box-shadow: 0 4px 16px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .04); }
+.message.user .message-text { background: #2a313a; border-color: rgba(210, 210, 210, .28); color: #f2f2f2; }
+.message-label { color: #9ea8b2; }
+.message-label time { color: #7d8892; }
+.conversation-empty h2 { color: #ededed; }
+.conversation-empty > p { color: #9aa6b2; }
 .composer, .proposal, .settings-modal, .review-modal { background: rgba(23, 23, 23, .98); border-color: rgba(190, 190, 190, .16); }
 .composer { background: #1b1b1b; }
 .composer-top span:first-child, .model-hint code, .modal-copy code, .docs-link, .welcome h1 em { color: #d0d0d0; }
