@@ -47,8 +47,29 @@ async function completion(config:ProviderConfig,messages:Array<{role:string;cont
   const controller=new AbortController();const start=performance.now();const timeout=window.setTimeout(()=>controller.abort(),45_000);const abortFromCaller=()=>controller.abort();if(options.signal?.aborted)controller.abort();options.signal?.addEventListener('abort',abortFromCaller,{once:true});
   try{
     let response:Response;
-    try{response=await fetch(adapter.endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${config.key}`,Accept:options.stream?'text/event-stream':'application/json'},body:JSON.stringify({model:config.model.trim(),messages,temperature:0.2,max_tokens:4096,stream:!!options.stream}),signal:controller.signal});}
-    catch{throw new Error(controller.signal.aborted?(options.signal?.aborted?`${adapter.label} request was cancelled.`:`${adapter.label} request timed out. Retry once the provider is responsive.`):`The direct browser request to ${adapter.label} failed. Check network access and this provider's browser CORS policy. TracePilot does not proxy credentials.`);}
+    const proxyEndpoint = config.provider === 'nvidia-api'
+      ? '/api-proxy/nvidia/v1/chat/completions'
+      : '/api-proxy/nebius/v1/chat/completions';
+    const requestHeaders = {'Content-Type':'application/json',Authorization:`Bearer ${config.key}`,Accept:options.stream?'text/event-stream':'application/json'};
+    const requestBody = JSON.stringify({model:config.model.trim(),messages,temperature:0.2,max_tokens:4096,stream:!!options.stream});
+
+    try {
+      response = await fetch(adapter.endpoint, {method:'POST',headers:requestHeaders,body:requestBody,signal:controller.signal});
+    } catch (directError) {
+      if (controller.signal.aborted) {
+        throw new Error(options.signal?.aborted ? `${adapter.label} request was cancelled.` : `${adapter.label} request timed out. Retry once the provider is responsive.`);
+      }
+      const isLocalHost = typeof window !== 'undefined' && Boolean(window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1' || window.location?.port);
+      if (isLocalHost) {
+        try {
+          response = await fetch(proxyEndpoint, {method:'POST',headers:requestHeaders,body:requestBody,signal:controller.signal});
+        } catch {
+          throw new Error(`The direct browser request to ${adapter.label} failed. Check network access and this provider's browser CORS policy. TracePilot does not proxy credentials.`);
+        }
+      } else {
+        throw new Error(`The direct browser request to ${adapter.label} failed. Check network access and this provider's browser CORS policy. TracePilot does not proxy credentials.`);
+      }
+    }
     if(response.status===202)throw new Error(`${adapter.label} accepted this request for asynchronous processing (HTTP 202), but TracePilot does not poll asynchronous inference jobs yet. Retry with a synchronous model endpoint.`);
     if(!response.ok)throw responseError(adapter,response.status);
     let text='';let usage:InferenceUsage|undefined;
@@ -74,7 +95,24 @@ export async function testProvider(config:ProviderConfig):Promise<string>{
 
 export async function discoverNebiusModels(key:string):Promise<string[]>{
   const provider=PROVIDERS['nebius-token-factory'];if(!key.trim())throw new Error(`Add a ${provider.keyHelp} in the in-memory credential manager.`);const controller=new AbortController();const timeout=window.setTimeout(()=>controller.abort(),20_000);
-  try{let response:Response;try{response=await fetch('https://api.tokenfactory.nebius.com/v1/models',{headers:{Authorization:`Bearer ${key}`,Accept:'application/json'},signal:controller.signal});}catch{throw new Error(controller.signal.aborted?'Nebius model discovery timed out.':'Could not reach Nebius Token Factory directly. Check network access and browser CORS; TracePilot does not proxy credentials.');}if(!response.ok)throw responseError(provider,response.status);let body:unknown;try{body=await response.json();}catch{throw new Error('Nebius Token Factory returned malformed model-catalog JSON.');}const models=(body as {data?:Array<{id?:unknown}>})?.data;if(!Array.isArray(models))throw new Error('Nebius Token Factory returned an unexpected model-catalog format.');return models.flatMap(model=>typeof model.id==='string'?[model.id]:[]);}finally{window.clearTimeout(timeout);}
+  try{
+    let response:Response;
+    try{
+      response=await fetch('https://api.tokenfactory.nebius.com/v1/models',{headers:{Authorization:`Bearer ${key}`,Accept:'application/json'},signal:controller.signal});
+    }catch(directError){
+      if(controller.signal.aborted)throw new Error('Nebius model discovery timed out.');
+      const isLocalHost = typeof window !== 'undefined' && Boolean(window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1' || window.location?.port);
+      if(isLocalHost){
+        try{
+          response=await fetch('/api-proxy/nebius/v1/models',{headers:{Authorization:`Bearer ${key}`,Accept:'application/json'},signal:controller.signal});
+        }catch{
+          throw new Error('Could not reach Nebius Token Factory directly. Check network access and browser CORS; TracePilot does not proxy credentials.');
+        }
+      }else{
+        throw new Error('Could not reach Nebius Token Factory directly. Check network access and browser CORS; TracePilot does not proxy credentials.');
+      }
+    }
+    if(!response.ok)throw responseError(provider,response.status);let body:unknown;try{body=await response.json();}catch{throw new Error('Nebius Token Factory returned malformed model-catalog JSON.');}const models=(body as {data?:Array<{id?:unknown}>})?.data;if(!Array.isArray(models))throw new Error('Nebius Token Factory returned an unexpected model-catalog format.');return models.flatMap(model=>typeof model.id==='string'?[model.id]:[]);}finally{window.clearTimeout(timeout);}
 }
 
 export async function askProvider(config:ProviderConfig,turns:ChatTurn[],context?:{path:string;content:string},options:ProviderRequestOptions={}):Promise<InferenceResult>{
