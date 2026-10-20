@@ -875,8 +875,10 @@ export default function App() {
 
   const addCredential = () => {
     try {
-      validateCredential(credentialProvider, credentialLabel, credentialKey);
-      const item: Credential = { id: newId(), label: credentialLabel.trim(), provider: credentialProvider, key: credentialKey, testedModels: [] };
+      const cleanLabel = credentialLabel.trim();
+      const cleanKey = credentialKey.trim();
+      validateCredential(credentialProvider, cleanLabel, cleanKey);
+      const item: Credential = { id: newId(), label: cleanLabel, provider: credentialProvider, key: cleanKey, testedModels: [] };
       setCredentials(items => [...items, item]);
       setSelectedCredentialId(item.id);
       setModel(getProvider(item.provider).models[0]?.id || '');

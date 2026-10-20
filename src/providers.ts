@@ -75,15 +75,16 @@ export function validateCredential(provider: ProviderId, label: string, key: str
   if (!key.trim() || key.trim().length > 4096 || /[\r\n]/.test(key)) throw new Error('Enter a valid key value. Keys are used only for the selected provider request.');
 }
 
-function responseError(provider: ProviderAdapter, status: number): Error {
+function responseError(provider: ProviderAdapter, status: number, detail?: string): Error {
+  const extra = detail ? ` (Server message: "${detail}")` : '';
   const message =
-    status === 401 || status === 403 ? `${provider.label} rejected this credential or model access. Check the key, account permissions, and model availability.` :
-    status === 402 ? `${provider.label} reports insufficient credits or billing access.` :
-    status === 404 ? `The selected model or endpoint was not found at ${provider.label}. Verify the model ID for this provider.` :
-    status === 429 ? `${provider.label} rate limit reached. Wait before trying again.` :
-    status === 400 || status === 422 ? `${provider.label} rejected the request parameters (HTTP ${status}). Check the model ID and request format.` :
-    status >= 500 ? `${provider.label} is unavailable (HTTP ${status}). Retry later.` :
-    `${provider.label} returned HTTP ${status}. Check model ID, request limits, and provider configuration.`;
+    status === 401 || status === 403 ? `${provider.label} rejected this credential or model access (HTTP ${status})${extra}. Check that your API key is active, properly copied without quotes or spaces, and has model inference permissions.` :
+    status === 402 ? `${provider.label} reports insufficient credits or billing access${extra}.` :
+    status === 404 ? `The selected model or endpoint was not found at ${provider.label} (HTTP 404)${extra}. Verify the model ID for this provider.` :
+    status === 429 ? `${provider.label} rate limit reached${extra}. Wait before trying again.` :
+    status === 400 || status === 422 ? `${provider.label} rejected the request parameters (HTTP ${status})${extra}. Check the model ID and request format.` :
+    status >= 500 ? `${provider.label} is unavailable (HTTP ${status})${extra}. Retry later.` :
+    `${provider.label} returned HTTP ${status}${extra}. Check model ID, request limits, and provider configuration.`;
   return Object.assign(new Error(message), { status });
 }
 
@@ -181,7 +182,18 @@ export async function completion(
     if (response.status === 202) {
       throw new Error(`${adapter.label} accepted this request for asynchronous processing (HTTP 202), but TracePilot does not poll asynchronous inference jobs yet. Retry with a synchronous model endpoint.`);
     }
-    if (!response.ok) throw responseError(adapter, response.status);
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const errorData = await response.json();
+        detail = errorData?.detail || errorData?.error?.message || errorData?.message || '';
+      } catch {
+        try {
+          detail = await response.text();
+        } catch {}
+      }
+      throw responseError(adapter, response.status, detail ? String(detail).slice(0, 300) : undefined);
+    }
 
     let text = '';
     let usage: InferenceUsage | undefined;
@@ -334,7 +346,18 @@ export async function discoverNebiusModels(key: string): Promise<string[]>{
         throw new Error('Could not reach Nebius Token Factory directly. Check network access and browser CORS; TracePilot does not proxy credentials.');
       }
     }
-    if (!response.ok) throw responseError(provider, response.status);
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const errorData = await response.json();
+        detail = errorData?.detail || errorData?.error?.message || errorData?.message || '';
+      } catch {
+        try {
+          detail = await response.text();
+        } catch {}
+      }
+      throw responseError(provider, response.status, detail ? String(detail).slice(0, 300) : undefined);
+    }
     let body: unknown;
     try {
       body = await response.json();
